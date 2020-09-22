@@ -43,6 +43,8 @@ release_max_level_trace = []
 
 std = []
 
+test_support = []
+
 # requires the latest stable
 # this will have a tighter MSRV before stabilization
 kv_unstable = []

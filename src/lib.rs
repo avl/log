@@ -232,6 +232,9 @@
 //! * `std` allows use of `std` crate instead of the default `core`. Enables using `std::error` and
 //! `set_boxed_logger` functionality.
 //! * `serde` enables support for serialization and deserialization of `Level` and `LevelFilter`.
+//! * `test_support` causes log output to be printed to stdout if no logger is configured. This is
+//! useful to have rudimentary log output in unit tests, to help diagnose them. This option requires
+//! std (since it uses println to print to stdout), even if the std feature is not activated.
 //!
 //! ```toml
 //! [dependencies]
@@ -270,13 +273,13 @@
 )]
 #![warn(missing_docs)]
 #![deny(missing_debug_implementations)]
-#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![cfg_attr(all(not(feature = "std"), not(test), not(feature = "test_support")), no_std)]
 // When compiled for the rustc compiler itself we want to make sure that this is
 // an unstable crate
 #![cfg_attr(rustbuild, feature(staged_api, rustc_private))]
 #![cfg_attr(rustbuild, unstable(feature = "rustc_private", issue = "27812"))]
 
-#[cfg(all(not(feature = "std"), not(test)))]
+#[cfg(all(not(feature = "std"), not(test), not(feature = "test_support")))]
 extern crate core as std;
 
 #[macro_use]
@@ -310,7 +313,18 @@ const UNINITIALIZED: usize = 0;
 const INITIALIZING: usize = 1;
 const INITIALIZED: usize = 2;
 
-static MAX_LOG_LEVEL_FILTER: AtomicUsize = AtomicUsize::new(0);
+
+static MAX_LOG_LEVEL_FILTER: AtomicUsize = AtomicUsize::new({
+    #[cfg(feature="test_support")]
+        {
+            LOG_LEVEL_NAMES.len()-1
+        }
+
+    #[cfg(not(feature="test_support"))]
+        {
+            0
+        }
+});
 
 static LOG_LEVEL_NAMES: [&str; 6] = ["OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
 
@@ -1163,7 +1177,10 @@ impl Log for NopLogger {
         false
     }
 
-    fn log(&self, _: &Record) {}
+    fn log(&self, r: &Record) {
+        #[cfg(feature="test_support")]
+        println!("{:?}[{}]: {:?}",r.metadata.level,r.metadata.target,r.args);
+    }
     fn flush(&self) {}
 }
 
